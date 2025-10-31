@@ -81,8 +81,10 @@ To use VRCam in your application, you must declare the required permissions and 
     <uses-permission android:name="android.permission.CAMERA" />
     
     <!-- Storage permissions - required for gallery image selection -->
+    <!-- READ_EXTERNAL_STORAGE for Android 12L and below -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
                      android:maxSdkVersion="32" />
+    <!-- READ_MEDIA_IMAGES for Android 13 and above -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     
     <!-- Write permission for saving captured images (legacy devices) -->
@@ -169,7 +171,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
-import com.example.vrcam.databinding.ActivityMainBinding
+import com.yourapp.databinding.ActivityMainBinding
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -342,14 +344,18 @@ private fun captureForVerification(callback: (File) -> Unit) {
 
 // Send to Sumsub
 private fun sendToSumsub(imageFile: File) {
-    // Initialize Sumsub SDK (example)
-    val sumsub = SNSMobileSDK.Builder(this)
-        .withAccessToken("YOUR_ACCESS_TOKEN")
-        .build()
+    // Example: Integrate with Sumsub SDK
+    // NOTE: This is a simplified example. Actual Sumsub SDK integration
+    // varies by version and implementation approach.
+    // Always refer to the official Sumsub documentation for the most
+    // up-to-date integration instructions:
+    // https://developers.sumsub.com/
     
-    // Upload the captured image
-    // Note: Actual Sumsub integration may vary based on SDK version
-    // Refer to Sumsub's official documentation for exact implementation
+    // Typical flow:
+    // 1. Initialize the Sumsub SDK with your access token
+    // 2. Create a verification session
+    // 3. Upload the captured image as part of the verification process
+    // 4. Handle the verification result callback
 }
 ```
 
