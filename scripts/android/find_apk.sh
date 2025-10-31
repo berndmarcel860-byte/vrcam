@@ -142,10 +142,14 @@ done
 
 # Also use find as fallback to catch any missed APKs
 while IFS= read -r apk; do
-    # Skip if already in our arrays
+    # Normalize path (remove leading ./)
+    normalized_apk="${apk#./}"
+    
+    # Skip if already in our arrays (check both original and normalized)
     already_found=0
     for existing in "${debug_apks[@]}" "${release_apks[@]}" "${other_apks[@]}"; do
-        if [ "$apk" = "$existing" ]; then
+        existing_normalized="${existing#./}"
+        if [ "$normalized_apk" = "$existing_normalized" ]; then
             already_found=1
             break
         fi
