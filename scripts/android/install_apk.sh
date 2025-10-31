@@ -165,8 +165,10 @@ find_apk() {
             return 0
         fi
         
-        # Try glob expansion
-        local found_apks=($(ls $apk_pattern 2>/dev/null))
+        # Try glob expansion (using nullglob for safe expansion)
+        shopt -s nullglob
+        local found_apks=($apk_pattern)
+        shopt -u nullglob
         if [ ${#found_apks[@]} -eq 1 ]; then
             echo "${found_apks[0]}"
             return 0
@@ -290,8 +292,12 @@ install_apk() {
             echo ""
             echo "Common issues:"
             echo "  - Device storage full: Free up space on your device"
-            echo "  - Signature mismatch: Uninstall existing app first with:"
-            echo "    adb -s $device uninstall $package_name"
+            if [ -n "$package_name" ]; then
+                echo "  - Signature mismatch: Uninstall existing app first with:"
+                echo "    adb -s $device uninstall $package_name"
+            else
+                echo "  - Signature mismatch: Uninstall existing app first"
+            fi
             echo "  - Insufficient permissions: Check USB debugging is enabled"
             echo "  - SDK version mismatch: Device Android version is too old for this APK"
             exit 3
