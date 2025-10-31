@@ -4,8 +4,11 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.View
@@ -18,8 +21,11 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.example.vrcam.databinding.ActivityMainBinding
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -174,14 +180,18 @@ class MainActivity : AppCompatActivity() {
                     // If there's an overlay, we need to composite the images
                     if (overlayImageUri != null && binding.overlayImageView.visibility == View.VISIBLE) {
                         output.savedUri?.let { savedUri ->
-                            try {
-                                compositeImages(savedUri)
-                            } catch (e: Exception) {
-                                Toast.makeText(
-                                    baseContext,
-                                    "${getString(R.string.error_saving)}: ${e.message}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            lifecycleScope.launch {
+                                try {
+                                    compositeImages(savedUri)
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(
+                                            baseContext,
+                                            "${getString(R.string.error_saving)}: ${e.message}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -193,13 +203,13 @@ class MainActivity : AppCompatActivity() {
         )
     }
     
-    private fun compositeImages(cameraImageUri: Uri) {
+    private suspend fun compositeImages(cameraImageUri: Uri) = withContext(Dispatchers.IO) {
         try {
-            // Load the camera image
-            val cameraImage = MediaStore.Images.Media.getBitmap(contentResolver, cameraImageUri)
+            // Load the camera image using modern API
+            val cameraImage = loadBitmap(cameraImageUri)
             
             // Load the overlay image
-            val overlayImage = MediaStore.Images.Media.getBitmap(contentResolver, overlayImageUri)
+            val overlayImage = loadBitmap(overlayImageUri!!)
             
             // Create a new bitmap with the same size as camera image
             val resultBitmap = Bitmap.createBitmap(
@@ -222,7 +232,7 @@ class MainActivity : AppCompatActivity() {
             
             // Apply transparency to overlay
             val paint = android.graphics.Paint().apply {
-                alpha = (0.7f * 255).toInt()
+                alpha = (OVERLAY_ALPHA * 255).toInt()
             }
             canvas.drawBitmap(scaledOverlay, 0f, 0f, paint)
             
@@ -237,18 +247,32 @@ class MainActivity : AppCompatActivity() {
             scaledOverlay.recycle()
             resultBitmap.recycle()
             
-            Toast.makeText(
-                baseContext,
-                "${getString(R.string.image_saved)}: $cameraImageUri",
-                Toast.LENGTH_SHORT
-            ).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    baseContext,
+                    "${getString(R.string.image_saved)}: $cameraImageUri",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
             
         } catch (e: IOException) {
-            Toast.makeText(
-                baseContext,
-                "${getString(R.string.error_saving)}: ${e.message}",
-                Toast.LENGTH_SHORT
-            ).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    baseContext,
+                    "${getString(R.string.error_saving)}: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+    
+    private fun loadBitmap(uri: Uri): Bitmap {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(contentResolver, uri)
+            ImageDecoder.decodeBitmap(source)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(contentResolver, uri)
         }
     }
     
@@ -266,6 +290,7 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private const val OVERLAY_ALPHA = 0.7f
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
     }
 }

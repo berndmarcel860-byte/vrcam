@@ -52,6 +52,6 @@ dependencies {
     // Activity result API
     implementation 'androidx.activity:activity-ktx:1.7.0'
     
-    // Permissions
-    implementation 'androidx.core:core-ktx:1.9.0'
+    // Coroutines for background processing
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
 }
