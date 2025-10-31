@@ -14,6 +14,8 @@ VRCam is a camera module for Kotlin/Android that enables virtual camera function
 
 You can integrate VRCam into your Android project using either Kotlin DSL or Groovy DSL syntax.
 
+> **⚠️ Important**: The artifact coordinates below use JitPack distribution. The maintainer should update the version number to match the actual release version available in the repository.
+
 ### Option A: Kotlin DSL (build.gradle.kts)
 
 Add the following dependency to your app module's `build.gradle.kts`:
