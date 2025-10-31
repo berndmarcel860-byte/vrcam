@@ -56,6 +56,11 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
     
+    # Restrict permissions for security
+    permissions:
+      contents: read
+      actions: read
+    
     # Only run if gradlew exists (or workflow_dispatch)
     # This prevents the workflow from failing on non-Android projects
     if: github.event_name == 'workflow_dispatch' || hashFiles('gradlew') != ''
@@ -200,6 +205,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: always() && github.event_name != 'pull_request'
+    
+    # Restrict permissions for security
+    permissions: {}
     
     steps:
       - name: Check build status
