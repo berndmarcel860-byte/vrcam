@@ -1,0 +1,214 @@
+name: Android APK Build
+
+# This workflow builds an Android APK on push to main and pull requests
+# It is conservative and only runs when:
+# 1. The repository contains a gradlew wrapper script, OR
+# 2. Manual workflow dispatch is triggered
+#
+# The workflow uploads the built APK as an artifact if successful
+
+on:
+  # Trigger on push to main branch
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/android-build.yml'
+  
+  # Trigger on pull requests
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/android-build.yml'
+  
+  # Allow manual workflow dispatch
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug or release)'
+        required: false
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    # Only run if gradlew exists (or workflow_dispatch)
+    # This prevents the workflow from failing on non-Android projects
+    if: github.event_name == 'workflow_dispatch' || hashFiles('gradlew') != ''
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Check for Gradle wrapper
+        id: check_gradlew
+        run: |
+          if [ -f "gradlew" ]; then
+            echo "gradle_available=true" >> $GITHUB_OUTPUT
+            echo "✅ Gradle wrapper found"
+          else
+            echo "gradle_available=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Gradle wrapper not found - skipping build"
+          fi
+      
+      - name: Set up JDK 11
+        if: steps.check_gradlew.outputs.gradle_available == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+      
+      - name: Grant execute permission for gradlew
+        if: steps.check_gradlew.outputs.gradle_available == 'true'
+        run: chmod +x gradlew
+      
+      - name: Setup Gradle
+        if: steps.check_gradlew.outputs.gradle_available == 'true'
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      
+      - name: Create local.properties
+        if: steps.check_gradlew.outputs.gradle_available == 'true'
+        run: |
+          # Create local.properties if it doesn't exist
+          if [ ! -f "local.properties" ]; then
+            echo "sdk.dir=$ANDROID_HOME" > local.properties
+            echo "✅ Created local.properties with ANDROID_HOME=$ANDROID_HOME"
+          fi
+      
+      - name: Determine build type
+        id: build_type
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          else
+            # Default to debug for automatic builds
+            BUILD_TYPE="debug"
+          fi
+          echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
+          echo "📦 Build type: $BUILD_TYPE"
+      
+      - name: Build Android APK
+        if: steps.check_gradlew.outputs.gradle_available == 'true'
+        run: |
+          BUILD_TYPE="${{ steps.build_type.outputs.build_type }}"
+          
+          if [ "$BUILD_TYPE" == "release" ]; then
+            echo "🔨 Building release APK..."
+            ./gradlew assembleRelease --no-daemon --stacktrace
+          else
+            echo "🔨 Building debug APK..."
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          fi
+      
+      - name: Find APK files
+        if: steps.check_gradlew.outputs.gradle_available == 'true'
+        id: find_apk
+        run: |
+          BUILD_TYPE="${{ steps.build_type.outputs.build_type }}"
+          
+          # Search for APK files
+          if [ "$BUILD_TYPE" == "release" ]; then
+            APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -1)
+          else
+            APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" -type f | head -1)
+          fi
+          
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+            echo "apk_found=true" >> $GITHUB_OUTPUT
+            
+            # Get APK info
+            APK_SIZE=$(ls -lh "$APK_PATH" | awk '{print $5}')
+            APK_NAME=$(basename "$APK_PATH")
+            
+            echo "✅ APK found: $APK_NAME"
+            echo "📊 Size: $APK_SIZE"
+            echo "📁 Path: $APK_PATH"
+          else
+            echo "apk_found=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No APK file found"
+          fi
+      
+      - name: Upload APK as artifact
+        if: steps.find_apk.outputs.apk_found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vrcam-${{ steps.build_type.outputs.build_type }}-apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## 📱 Android Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check_gradlew.outputs.gradle_available }}" == "true" ]; then
+            echo "✅ Gradle wrapper: Found" >> $GITHUB_STEP_SUMMARY
+            echo "🔨 Build type: ${{ steps.build_type.outputs.build_type }}" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ steps.find_apk.outputs.apk_found }}" == "true" ]; then
+              echo "✅ APK build: Success" >> $GITHUB_STEP_SUMMARY
+              echo "📦 Artifact: vrcam-${{ steps.build_type.outputs.build_type }}-apk" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 📥 Download APK" >> $GITHUB_STEP_SUMMARY
+              echo "The built APK is available as a workflow artifact." >> $GITHUB_STEP_SUMMARY
+              echo "Click on 'Summary' above and download the artifact." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ APK build: Failed or not found" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ Gradle wrapper not found - build skipped" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This workflow requires a Gradle wrapper (gradlew) to build Android APKs." >> $GITHUB_STEP_SUMMARY
+            echo "If this is not an Android project, you can safely ignore this workflow." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 Documentation" >> $GITHUB_STEP_SUMMARY
+          echo "For detailed build instructions, see [docs/INSTALL_ANDROID.md](./docs/INSTALL_ANDROID.md)" >> $GITHUB_STEP_SUMMARY
+  
+  notify:
+    name: Build Notification
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && github.event_name != 'pull_request'
+    
+    steps:
+      - name: Check build status
+        run: |
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "✅ Android APK build completed successfully!"
+          elif [ "${{ needs.build.result }}" == "skipped" ]; then
+            echo "⏭️ Android APK build was skipped (no Gradle wrapper found)"
+          else
+            echo "❌ Android APK build failed"
+            exit 1
+          fi

@@ -422,6 +422,33 @@ The app requires the following permissions:
 - `READ_EXTERNAL_STORAGE` / `READ_MEDIA_IMAGES` - Required to select images from gallery
 - `WRITE_EXTERNAL_STORAGE` (API ≤ 28) - Required to save captured images
 
+## Building and Installing APK
+
+For comprehensive instructions on building an Android APK from source and installing it on a device, see the [Android Installation Guide](docs/INSTALL_ANDROID.md).
+
+### Quick Start
+
+**Build APK:**
+```bash
+./gradlew assembleDebug
+```
+
+**Install on device:**
+```bash
+# Option 1: Use helper script (handles device selection automatically)
+./scripts/android/install_apk.sh
+
+# Option 2: Manual installation
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+**Find built APKs:**
+```bash
+./scripts/android/find_apk.sh
+```
+
+For detailed instructions including troubleshooting, prerequisites, and support for multiple project types, see [docs/INSTALL_ANDROID.md](docs/INSTALL_ANDROID.md).
+
 ## License
 
 This project is open source and available under the MIT License.
